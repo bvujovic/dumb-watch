@@ -65,6 +65,9 @@ uint8_t encodeCharToSegments(char c)
   case 'g':
     // return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F;
     return SEG_A | SEG_C | SEG_D | SEG_E | SEG_F | SEG_G;
+  case 'M':
+  case 'm':
+    return SEG_B | SEG_C | SEG_E | SEG_F | SEG_G;
   case 'H':
   case 'h':
     return SEG_C | SEG_E | SEG_F | SEG_G;
@@ -133,6 +136,8 @@ uint8_t encodeCharToSegments(char c)
     return SEG_A | SEG_B | SEG_C | SEG_D | SEG_F | SEG_G;
   case ' ':
     return 0;
+  case '\'':
+    return SEG_F;
   default:
     return 0;
   }
@@ -140,21 +145,36 @@ uint8_t encodeCharToSegments(char c)
 
 void displayTimerName(const TimerItem &timer)
 {
+  // if all charachers in timer.name are digits - display that data with displayNums(temp, hum)
+  // maybe this should be changed: if name is e.g. "----" - display time based on interval (convert it to min:sec)
+  auto allDigits = true;
+  for (auto i = 0; i < 4; ++i)
+    if (timer.name[i] < '0' || timer.name[i] > '9')
+      allDigits = false;
+  if (allDigits)
+  {
+    auto x = (timer.name[0] - '0') * 10 + timer.name[1] - '0';
+    auto y = (timer.name[2] - '0') * 10 + timer.name[3] - '0';
+    displayNums(x, y);
+    return;
+  }
   uint8_t segments[4];
   for (int i = 0; i < 4; ++i)
     segments[i] = encodeCharToSegments(timer.name[i]);
   display.setSegments(segments, 4);
-  delay(1000);
+  delay(1000); //?
 }
 
-#include <DHT.h> // lib_deps = adafruit/DHT sensor library@^1.4.6
-// #define DHTPIN 25     // DHT sensor pin
+#include <DHT.h>      // lib_deps = adafruit/DHT sensor library@^1.4.6
 #define DHTTYPE DHT22 // DHT 22 (AM2302)
 DHT dht(pinDHT, DHTTYPE);
 
 #include "OneButton.h"          // lib_deps = mathertel/OneButton@^2.0.0
 OneButton btn(pinButton, true); // click: send data, 2click: print log, long click: clear log
 
+#define MS_BUZZ_LONG 1000
+#define MS_BUZZ_MEDIUM 500
+#define MS_BUZZ_SHORT 250
 void buzz(int ms)
 {
   digitalWrite(pinBuzzer, HIGH);
@@ -173,19 +193,26 @@ enum Mode
 Mode mode = TEMP_HUM;
 
 TimerItem timers[] = {
-    TimerItem("t1  ", new int[1]{1}, 1),
-    TimerItem("  t2", new int[1]{2}, 1),
-    TimerItem("TEST", new int[1]{1}, 1),
-    TimerItem("EGGS", new int[3]{4, 4, 4}, 3),
-    TimerItem("COFF", new int[2]{4, 4}, 2),
+    TimerItem("0002", new int[1]{2}, 1),
+    TimerItem("0012", new int[1]{12}, 1),
+    TimerItem("GY S", new int[1]{60}, 1),
+    TimerItem("GY M", new int[1]{2 * 60}, 1),
+    TimerItem("GY L", new int[1]{4 * 60}, 1),
+    // TimerItem("TEST", new int[1]{60}, 1),
+    // TimerItem("EGGS", new int[3]{240, 240, 240}, 3),
+    // TimerItem("COFF", new int[2]{240, 240}, 2),
 };
 int idxTimer = 0;
 ulong msTimerStart;
 
+ulong msClockStart;
+int lastBeepedMin = -1;
+
 void nextMode()
 {
   display.clear();
-  msLastDisplayUpdate = 0;
+  // msLastDisplayUpdate = 0;
+  msLastDisplayUpdate = ULONG_MAX;
   mode = static_cast<Mode>((mode + 1) % MODE_COUNT);
 
   switch (mode)
@@ -193,15 +220,20 @@ void nextMode()
   case TIMER:
     displayTimerName(timers[idxTimer = 0]);
     break;
+
+  case CLOCK:
+    displayNums(0, 0);
+    break;
   }
 }
 
 void setup()
 {
+  pinMode(pinBuzzer, OUTPUT);
+  digitalWrite(pinBuzzer, LOW);
   Serial.begin(115200);
   display.setBrightness(1);
   dht.begin();
-  pinMode(pinBuzzer, OUTPUT);
 
   btn.attachClick([]()
                   {
@@ -222,11 +254,15 @@ void setup()
                             case TIMER:
                               msTimerStart = millis();
                               break;
+                            case CLOCK:
+                              msClockStart = millis();
+                              break;  
                           } });
 
   btn.attachLongPressStart([]()
                            { nextMode(); });
-  msLastDisplayUpdate = millis();
+  // set msLastDisplayUpdate to unsigned long max value, so that display will be updated immediately in the loop
+  msLastDisplayUpdate = ULONG_MAX;
 }
 
 void loop()
@@ -238,7 +274,7 @@ void loop()
   {
   case TEMP_HUM:
   {
-    if (millis() - msLastDisplayUpdate < 5000)
+    if (msLastDisplayUpdate != ULONG_MAX && millis() - msLastDisplayUpdate < 5000)
       break;
     float hum = dht.readHumidity();
     float temp = dht.readTemperature();
@@ -260,19 +296,48 @@ void loop()
   {
     if (msTimerStart == 0)
       break;
-    int remaining = timers[idxTimer].intervals[0] * 60 - (millis() - msTimerStart) / 1000;
+    int remaining = timers[idxTimer].intervals[0] - (millis() - msTimerStart) / 1000;
     if (remaining < 0)
     {
       remaining = 0;
       msTimerStart = 0;
-      buzz(1000);
+      buzz(MS_BUZZ_LONG);
+      delay(MS_BUZZ_LONG);
+      buzz(MS_BUZZ_LONG);
+      displayTimerName(timers[idxTimer]);
     }
-    displayNums(remaining / 60, remaining % 60);
+    else
+      displayNums(remaining / 60, remaining % 60);
     break;
   }
 
   case CLOCK:
   {
+    if (msClockStart == 0)
+      break;
+    int mm = (millis() - msClockStart) / 60000;
+    int hh = mm / 60;
+    mm = mm % 60;
+    displayNums(hh, mm);
+    if (mm != lastBeepedMin && (mm % 5 == 0))
+    {
+/*
+if (isItOn && ti.tm_sec == 0 && prevMinutesBuzzIN != ti.tm_min)
+    {
+        prevMinutesBuzzIN = ti.tm_min;
+        if (ti.tm_min % 10 == 0)
+        {
+            for (BuzzData b : buzzes)
+                if (b.minutes == ti.tm_min && b.minutes % buzzOnMin == 0)
+                    buzzer->blink(b.itvBuzz, b.countBuzz);
+        }
+        else if (buzzOnMin == 5 && ti.tm_min % 5 == 0)
+            buzzer->blink(100, 2);
+    }
+*/
+      buzz(MS_BUZZ_SHORT);
+      lastBeepedMin = mm;
+    }
     break;
   }
   }
