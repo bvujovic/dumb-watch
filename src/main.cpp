@@ -5,7 +5,7 @@ const byte pinClock = 4;   // TM1637 display CLK pin
 const byte pinDio = 3;     // TM1637 display DIO pin
 const byte pinDHT = 1;     // DHT sensor pin
 const byte pinButton = 2;  // button pin
-const byte pinBuzzer = 21; // buzzer pin
+const byte pinBuzzer = 10; // buzzer pin
 #elif defined(CONFIG_IDF_TARGET_ESP32)
 const byte pinClock = 32;  // TM1637 display CLK pin
 const byte pinDio = 33;    // TM1637 display DIO pin
@@ -16,6 +16,20 @@ const byte pinBuzzer = 27; // buzzer pin
 
 #include <TM1637Display.h>
 TM1637Display display(pinClock, pinDio);
+
+#include <WiFi.h>
+#include <CredWiFi.h>
+#define MY_NTP_SERVER "rs.pool.ntp.org"
+#define MY_TZ "CET-1CEST,M3.5.0/02,M10.5.0/03"
+#include "time.h"
+time_t now; // this are the seconds since Epoch (1970) - UTC
+struct tm ti;
+
+void getTime()
+{
+  time(&now);             // read the current time
+  localtime_r(&now, &ti); // update the structure tm with the current time
+}
 
 class TimerItem
 {
@@ -172,14 +186,24 @@ DHT dht(pinDHT, DHTTYPE);
 #include "OneButton.h"          // lib_deps = mathertel/OneButton@^2.0.0
 OneButton btn(pinButton, true); // click: send data, 2click: print log, long click: clear log
 
-#define MS_BUZZ_LONG 1000
-#define MS_BUZZ_MEDIUM 500
-#define MS_BUZZ_SHORT 250
+#define MS_ITV_LONG 1000
+#define MS_ITV_MEDIUM 333
+#define MS_ITV_SHORT 100
+
 void buzz(int ms)
 {
   digitalWrite(pinBuzzer, HIGH);
   delay(ms);
   digitalWrite(pinBuzzer, LOW);
+}
+void buzz(int ms, int count)
+{
+  for (int i = 0; i < count; ++i)
+  {
+    buzz(ms);
+    if (i != count - 1)
+      delay(ms);
+  }
 }
 
 ulong msLastDisplayUpdate;
@@ -193,25 +217,27 @@ enum Mode
 Mode mode = TEMP_HUM;
 
 TimerItem timers[] = {
-    TimerItem("0002", new int[1]{2}, 1),
-    TimerItem("0012", new int[1]{12}, 1),
-    TimerItem("GY S", new int[1]{60}, 1),
-    TimerItem("GY M", new int[1]{2 * 60}, 1),
-    TimerItem("GY L", new int[1]{4 * 60}, 1),
+    TimerItem("COFF", new int[1]{60}, 1),
+    TimerItem("EGGS", new int[1]{4 * 60}, 1),
+    TimerItem("FREE", new int[1]{7 * 60}, 1), // "BLEJ"
+
+    TimerItem("RESS", new int[1]{60}, 1), // rest between sets
+    TimerItem("RESM", new int[1]{90}, 1),
+    TimerItem("RESL", new int[1]{120}, 1),
+
+    // TimerItem("0012", new int[1]{12}, 1),
     // TimerItem("TEST", new int[1]{60}, 1),
-    // TimerItem("EGGS", new int[3]{240, 240, 240}, 3),
-    // TimerItem("COFF", new int[2]{240, 240}, 2),
 };
 int idxTimer = 0;
 ulong msTimerStart;
 
 ulong msClockStart;
 int lastBeepedMin = -1;
+bool isClockCurrentTime = false;
 
 void nextMode()
 {
   display.clear();
-  // msLastDisplayUpdate = 0;
   msLastDisplayUpdate = ULONG_MAX;
   mode = static_cast<Mode>((mode + 1) % MODE_COUNT);
 
@@ -223,6 +249,7 @@ void nextMode()
 
   case CLOCK:
     displayNums(0, 0);
+    // isClockCurrentTime = false;
     break;
   }
 }
@@ -231,7 +258,7 @@ void setup()
 {
   pinMode(pinBuzzer, OUTPUT);
   digitalWrite(pinBuzzer, LOW);
-  Serial.begin(115200);
+  // Serial.begin(115200);
   display.setBrightness(1);
   dht.begin();
 
@@ -245,6 +272,48 @@ void setup()
                         displayTimerName(timers[idxTimer]);
                         msTimerStart = 0;
                         break;
+
+                        case CLOCK:
+                        // if clock is currently showing time - switch to showing current time, otherwise switch to showing time since clock started
+                        isClockCurrentTime = !isClockCurrentTime;
+                        if (isClockCurrentTime)
+                        {
+                          // if(ti.tm_year < (2025 - 1900)) // if time is not set yet - get time from NTP
+                          // {
+                          display.clear();
+                          WiFi.persistent(false);
+                          WiFi.mode(WIFI_STA);
+                          WiFi.setTxPower(WIFI_POWER_13dBm);
+                          WiFi.begin(WIFI_SSID, WIFI_PASS);
+                          while (WiFi.status() != WL_CONNECTED)
+                          {
+                            // Serial.print('.');
+                            delay(1000);
+                          }
+                          configTime(0, 0, MY_NTP_SERVER); // 0, 0 because we will use TZ in the next line
+                          setenv("TZ", MY_TZ, 1);          // Set environment variable with your time zone
+                          tzset();
+
+                          // Serial.println("Waiting for NTP time sync:");
+                          while (ti.tm_year < (2025 - 1900))
+                          {
+                              // Serial.print(".");
+                              delay(1000);
+                              getTime();
+                          }
+                          // Serial.println("Time synchronized!");
+                          // showTime();
+                          WiFi.mode(WIFI_OFF); // turn off wifi to save power, we don't need it anymore
+                          // }
+                          msClockStart = millis() - (ti.tm_hour * 3600 + ti.tm_min * 60 + ti.tm_sec) * 1000;
+                        }
+                        else
+                          msClockStart = millis();
+
+                        lastBeepedMin = -1;
+                        // displayNums(ti.tm_hour, ti.tm_min);
+                        // delay(MS_ITV_SHORT);
+                        break;
                     } });
 
   btn.attachDoubleClick([]()
@@ -256,6 +325,13 @@ void setup()
                               break;
                             case CLOCK:
                               msClockStart = millis();
+                              lastBeepedMin = -1;
+                              display.clear();
+                              delay(MS_ITV_SHORT);
+                              displayNums(0, 0);
+                              delay(MS_ITV_SHORT);
+                              display.clear();
+                              delay(MS_ITV_SHORT);
                               break;  
                           } });
 
@@ -301,9 +377,7 @@ void loop()
     {
       remaining = 0;
       msTimerStart = 0;
-      buzz(MS_BUZZ_LONG);
-      delay(MS_BUZZ_LONG);
-      buzz(MS_BUZZ_LONG);
+      buzz(MS_ITV_MEDIUM, 2);
       displayTimerName(timers[idxTimer]);
     }
     else
@@ -319,23 +393,14 @@ void loop()
     int hh = mm / 60;
     mm = mm % 60;
     displayNums(hh, mm);
-    if (mm != lastBeepedMin && (mm % 5 == 0))
+    if (mm != lastBeepedMin && (mm % 5 == 0) && !(mm == 0 && lastBeepedMin == -1))
     {
-/*
-if (isItOn && ti.tm_sec == 0 && prevMinutesBuzzIN != ti.tm_min)
-    {
-        prevMinutesBuzzIN = ti.tm_min;
-        if (ti.tm_min % 10 == 0)
-        {
-            for (BuzzData b : buzzes)
-                if (b.minutes == ti.tm_min && b.minutes % buzzOnMin == 0)
-                    buzzer->blink(b.itvBuzz, b.countBuzz);
-        }
-        else if (buzzOnMin == 5 && ti.tm_min % 5 == 0)
-            buzzer->blink(100, 2);
-    }
-*/
-      buzz(MS_BUZZ_SHORT);
+      if (mm % 30 == 0) // 00 -> 2x LONG, 30 -> 1x LONG
+        buzz(MS_ITV_LONG, mm == 0 ? 2 : 1);
+      else if (mm % 10 == 0) // 10, 40 -> 1x MED, 20, 50 -> 2x MED
+        buzz(MS_ITV_MEDIUM, mm == 10 || mm == 40 ? 1 : 2);
+      else // 5, 15, 25, 35, 45, 55 -> 2x SHORT
+        buzz(MS_ITV_SHORT, 2);
       lastBeepedMin = mm;
     }
     break;
