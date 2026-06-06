@@ -1,6 +1,8 @@
 # Dumb Watch
 aka Vranićki Sat
 
+![Test device](docs/test-device.jpg)
+
 ## Components
 ESP32-C3 SuperMini, TM1637 display, buzzer, button
 
@@ -13,17 +15,18 @@ ESP32-C3 SuperMini, TM1637 display, buzzer, button
 - [ ] Code refactor
    - [ ] separate code into multiple files
    - [ ] use classes for different components (clock, timer, temp/hum sensor, display)
-- [x] Clock
-   - [x] Clock shouldn't beep as soon as it starts but it might be good to blink or something 
-   so that user knows that it started
-   - [x] Implement different beeps; copy idea/code from lib/TimeWatcher/src/TimeWatcher.cpp
-- [ ] Timer
-   - [x] TimerItem object should be initialized using seconds, not minutes.
-   - [x] Decide if Timer should have one or more countdown times. Start with just one time per timer/name.
-   - [ ] Click: if in countdown - pause/stop (maybe click when paused - back to timer's name); if not - next timer (display the name). Maybe double click should pause timer that's in progress.
 - [ ] Make device low power
    - [ ] temp/hum: read less often; sleep between reads
    - [ ] clock: sleep between display updates
    - [ ] auto turn off screen
 - [ ] Maybe it would be better if 2 or 3 buttons are used instead of 1
    - TIMER: next/prev timer...
+- [ ] Maybe it would be better if clicks would work like this:
+   - click -> next item (mode, timer item...)
+   - long click -> enter/start
+   - double click -> exit/back
+   - modes would display their names initially: TEHU (temp/hum), TIMR/TIME, CLCK/CLOC
+- [ ] Improve component placement on the breadboard
+   - [ ] Display should be horizontal (adjustable angle: solid wire glued to the side of the BB and row of 4 female pin headers or to display directly so that dupont wires can be used)
+   - [ ] Make a place holder for Li-Ion battery
+      - for "drone" batteries: metal profile (or couple of solid wires) glued to the bottom of the BB or just hot glue greased drone battery to the bottom of the BB. Make a room for boost converter (5V).
