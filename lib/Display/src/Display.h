@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
-#include <TM1637Display.h>
+#include <TM1637Display.h> // smougenot/TM1637 @ 0.0.0-alpha+sha.9486982048
 
 class Display
 {
@@ -11,7 +11,8 @@ private:
     uint8_t encodeCharToSegments(char c);
 
 public:
-    Display(byte pinClock, byte pinDio);
+    /// @param brightness – A number from 0 (lowes brightness) to 7 (highest brightness) 
+    Display(byte pinClock, byte pinDio, byte brightness = 1);
 
     void clear();
     void clear(uint32_t itvDelay);

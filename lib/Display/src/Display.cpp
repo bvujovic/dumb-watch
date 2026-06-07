@@ -1,9 +1,9 @@
 #include "Display.h"
 
-Display::Display(byte pinClock, byte pinDio)
+Display::Display(byte pinClock, byte pinDio, byte brightness)
 {
     disp = new TM1637Display(pinClock, pinDio);
-    disp->setBrightness(1);
+    disp->setBrightness(brightness);
 }
 
 void Display::clear()
