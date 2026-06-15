@@ -15,7 +15,7 @@ const byte pinBuzzer = 27;    // buzzer pin
 #endif
 
 #include "Display.h"
-Display display(pinDispClock, pinDispDio);
+Display display(pinDispClock, pinDispDio, 1);
 
 #include "Buzzer.h"
 Buzzer buzzer(pinBuzzer);
@@ -143,7 +143,7 @@ void setup()
     {
       case TEMP_HUM:
         tempHum.toggleBothTempHumDisplayed();
-        display.clear(MS_ITV_MEDIUM);
+        // display.clear(MS_ITV_MEDIUM);
         msLastDisplayUpdate = ULONG_MAX;
       break;
 

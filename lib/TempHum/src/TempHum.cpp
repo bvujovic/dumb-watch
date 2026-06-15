@@ -27,9 +27,12 @@ void TempHum::display()
     }
     else
     {
-        auto intTemp = (int)temp;      // 25.46 -> 25
-        auto decTemp = temp - intTemp; // 25.46 -> 0.46
-        decTemp *= 100;
-        _display->nums(intTemp, decTemp + 0.5);
+        auto intTemp = (int)temp;      // 25.40 -> 25
+        auto decTemp = (temp - intTemp) * 10; // 25.40 -> 0.4 -> 4
+        char s[] = "123*";
+        s[0] = '0' + (intTemp / 10) % 10;
+        s[1] = '0' + intTemp % 10;
+        s[2] = '0' + (int)decTemp;
+        _display->string(s, true);
     }
 }

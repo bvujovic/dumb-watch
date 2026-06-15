@@ -2,8 +2,8 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-// #include <CredWiFi.h>
-#include <CredWiFi_HotSpot.h>
+#include <CredWiFi.h>
+// #include <CredWiFi_HotSpot.h>
 #define MY_NTP_SERVER "rs.pool.ntp.org"
 #define MY_TZ "CET-1CEST,M3.5.0/02,M10.5.0/03"
 #include "time.h"

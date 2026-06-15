@@ -12,13 +12,14 @@ private:
 
 public:
     /// @param brightness – A number from 0 (lowes brightness) to 7 (highest brightness) 
-    Display(byte pinClock, byte pinDio, byte brightness = 1);
+    Display(byte pinClock, byte pinDio, byte brightness);
 
     void clear();
     void clear(uint32_t itvDelay);
 
     void nums(int x, int y);
-    void string(const char *str);
+    void string(const char *str, bool colon = false);
+    // void setSegments(const uint8_t segments[]) { disp->setSegments(segments); }
     // void displayTimerName(const TimerItem &timer);
 
 };

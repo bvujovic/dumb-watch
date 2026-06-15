@@ -31,7 +31,28 @@ void Clock::getCurrentTime()
     WiFi.persistent(false);
     WiFi.mode(WIFI_STA);
     WiFi.setTxPower(WIFI_POWER_13dBm);
-    WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+    struct NetCred
+    {
+        String ssid;
+        String pass;
+    };    
+    NetCred nets[] = {
+        { WIFI_SSID, WIFI_PASS },
+        { "POCO X3 Pro", "mile1234" },
+    };
+    int n = WiFi.scanNetworks();
+    for (size_t i = 0; i < sizeof(nets) / sizeof(NetCred); i++)
+    {
+        // find an index of the first network with nets[i].ssid name
+        for (int j = 0; j < n; j++)
+            if (WiFi.SSID(j) == nets[i].ssid)
+            {
+                WiFi.begin(nets[i].ssid.c_str(), nets[i].pass.c_str());
+                break;
+            }
+    }   
+    // WiFi.begin(WIFI_SSID, WIFI_PASS);
     while (WiFi.status() != WL_CONNECTED)
     {
         delay(1000);

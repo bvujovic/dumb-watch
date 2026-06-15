@@ -124,16 +124,20 @@ uint8_t Display::encodeCharToSegments(char c)
         return 0;
     case '\'':
         return SEG_F;
+    case '*':
+        return SEG_A | SEG_B | SEG_F | SEG_G;
     default:
         return 0;
     }
 }
 
-void Display::string(const char *str)
+void Display::string(const char *str, bool colon)
 {
     uint8_t segments[4];
     for (int i = 0; i < 4; ++i)
         segments[i] = encodeCharToSegments(str[i]);
+    if (colon)
+        segments[1] |= SEG_DP;
     disp->setSegments(segments, 4);
 }
 
