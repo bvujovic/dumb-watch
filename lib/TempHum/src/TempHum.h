@@ -9,7 +9,7 @@ class TempHum
 private:
     DHT *_dht;
     Display *_display;
-    bool _isBothTempHumDisplayed = true; // true - display temp:hum; false - display temp w/ decimals
+    bool _isBothTempHumDisplayed = false; // true - display temp:hum; false - display temp w/ decimals
 
 public:
     TempHum(byte pinDHT, Display *display);

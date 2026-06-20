@@ -6,20 +6,21 @@
 class Display
 {
 private:
-    TM1637Display* disp;
+  TM1637Display *disp;
 
-    uint8_t encodeCharToSegments(char c);
+  uint8_t encodeCharToSegments(char c);
 
 public:
-    /// @param brightness – A number from 0 (lowes brightness) to 7 (highest brightness) 
-    Display(byte pinClock, byte pinDio, byte brightness);
+  Display(byte pinClock, byte pinDio);
 
-    void clear();
-    void clear(uint32_t itvDelay);
+  /// @param brightness – A number from 0 (lowest brightness) to 7 (highest brightness)
+  void setBrightness(byte brightness) { disp->setBrightness(brightness); }
 
-    void nums(int x, int y);
-    void string(const char *str, bool colon = false);
-    // void setSegments(const uint8_t segments[]) { disp->setSegments(segments); }
-    // void displayTimerName(const TimerItem &timer);
+  void clear();
+  void clear(uint32_t itvDelay);
 
+  void nums(int x, int y, bool colon = true);
+  void string(const char *str, bool colon = false);
+  // void setSegments(const uint8_t segments[]) { disp->setSegments(segments); }
+  // void displayTimerName(const TimerItem &timer);
 };

@@ -15,16 +15,10 @@ const byte pinBuzzer = 27;    // buzzer pin
 #endif
 
 #include "Display.h"
-Display display(pinDispClock, pinDispDio, 1);
+Display display(pinDispClock, pinDispDio);
 
 #include "Buzzer.h"
 Buzzer buzzer(pinBuzzer);
-
-// void getTime()
-// {
-//   time(&now);             // read the current time
-//   localtime_r(&now, &ti); // update the structure tm with the current time
-// }
 
 class TimerItem
 {
@@ -57,9 +51,11 @@ OneButton btn(pinButton, true);
 ulong msLastDisplayUpdate;
 enum Mode
 {
-  TEMP_HUM, // Display current temperature and humidity
-  TIMER,    // Countdown from some given time
-  CLOCK,    // Time from 00:00 or current time
+  TEMP_HUM,    // Display current temperature and humidity
+  TIMER,       // Countdown from some given time
+  CLOCK,       // Time from 00:00 or current time
+  BRIGHTNESS,  // Set brightness of the screen
+  CLOCK_BEEPS, // How often should clock beep: ev 5, 10, 30min
   MODE_COUNT
 };
 Mode mode = TEMP_HUM;
@@ -70,8 +66,8 @@ int toSecs(double min) { return (int)(min * 60); }
 int toSecs(int min, int sec) { return min * 60 + sec; }
 
 TimerItem timers[] = {
-    TimerItem("COFF", new int[1]{toSecs(1, 30)}, 1),
-    TimerItem("EGGS", new int[1]{toSecs(3.5)}, 1),
+    TimerItem("COFF", new int[1]{toSecs(1, 20)}, 1),
+    TimerItem("EGGS", new int[1]{toSecs(3, 20)}, 1),
     // TimerItem("FREE", new int[1]{toSecs(7)}, 1), // "BLEJ"
 
     // rest between sets
@@ -89,10 +85,6 @@ TimerItem timers[] = {
 };
 int idxTimer = 0;
 ulong msTimerStart;
-
-// ulong msClockStart;
-// int lastBeepedMin = -1;
-// bool isClockCurrentTime = false;
 
 void nextMode()
 {
@@ -112,110 +104,107 @@ void nextMode()
   }
 }
 
-// ulong msStartGetTime;
-// const ulong msMaxGetTime = (ulong)15 * 1000;
+void clickHandler()
+{
+  switch (mode)
+  {
+  case TEMP_HUM:
+    tempHum.toggleBothTempHumDisplayed();
+    msLastDisplayUpdate = ULONG_MAX;
+    break;
 
-// abort getting current time if it takes too long
-// bool abortGetTimeIN()
-// {
-//   if (millis() > msStartGetTime + msMaxGetTime)
-//   {
-//     WiFi.mode(WIFI_OFF);
-//     isClockCurrentTime = false;
-//     msClockStart = millis();
-//     buzzer.buzz(MS_ITV_SHORT, 3);
-//     return true;
-//   }
-//   return false;
-// }
+  case TIMER:
+    if (++idxTimer >= sizeof(timers) / sizeof(timers[0]))
+      idxTimer = 0;
+    display.string(timers[idxTimer].name);
+    msTimerStart = 0;
+    break;
+
+  case CLOCK:
+    // if clock is currently showing time - switch to showing current time, otherwise switch to showing time since clock started
+    clck.toggleClockCurrentTime();
+    if (clck.getClockCurrentTime())
+    {
+      display.clear();
+      clck.getCurrentTime();
+    }
+    break;
+
+  case BRIGHTNESS:
+    display.setBrightness(0);
+    break;
+
+  case CLOCK_BEEPS:
+    clck.setClockBeeps(Every5min);
+    break;
+  }
+}
+
+void doubleClickHandler()
+{
+  switch (mode)
+  {
+  case TIMER:
+    msTimerStart = millis();
+    break;
+
+  case CLOCK:
+    if (!clck.getClockCurrentTime())
+    {
+      if (clck.isPaused())
+        clck.start();
+      else
+        clck.pause();
+      display.nums(clck.getHours(), clck.getMinutes());
+    }
+    break;
+
+  case BRIGHTNESS:
+    display.setBrightness(1);
+    break;
+
+  case CLOCK_BEEPS:
+    clck.setClockBeeps(Every10min);
+    break;
+  }
+}
+
+void multiClickHandler()
+{
+  if (mode == BRIGHTNESS)
+  {
+    if (btn.getNumberClicks() == 3)
+      display.setBrightness(2);
+    if (btn.getNumberClicks() == 4)
+      display.setBrightness(7);
+    buzzer.buzz(100, btn.getNumberClicks());
+  }
+  if (mode == CLOCK_BEEPS)
+  {
+    if (btn.getNumberClicks() == 3)
+      clck.setClockBeeps(Every30min);
+    if (btn.getNumberClicks() == 4)
+      clck.setClockBeeps(NeverBeeps);
+  }
+}
 
 void setup()
 {
-  // pinMode(pinBuzzer, OUTPUT);
-  // digitalWrite(pinBuzzer, LOW);
-
   // Serial.begin(115200);
+  display.setBrightness(1);
   tempHum.begin();
+  clck.setClockBeeps(Every10min);
+  clck.pause();
 
-  btn.attachClick([]()
-                  {
-    switch (mode)
-    {
-      case TEMP_HUM:
-        tempHum.toggleBothTempHumDisplayed();
-        // display.clear(MS_ITV_MEDIUM);
-        msLastDisplayUpdate = ULONG_MAX;
-      break;
+  btn.attachClick(clickHandler);
 
-      case TIMER:
-        if (++idxTimer >= sizeof(timers) / sizeof(timers[0]))
-          idxTimer = 0;
-        display.string(timers[idxTimer].name);
-        msTimerStart = 0;
-        break;
-
-        case CLOCK:
-        // if clock is currently showing time - switch to showing current time, otherwise switch to showing time since clock started
-        // isClockCurrentTime = !isClockCurrentTime;
-        clck.toggleClockCurrentTime();
-        // if (isClockCurrentTime)
-        if (clck.getClockCurrentTime())
-        {
-          display.clear();
-          clck.getCurrentTime();
-        //   msStartGetTime = millis();
-        //   WiFi.persistent(false);
-        //   WiFi.mode(WIFI_STA);
-        //   WiFi.setTxPower(WIFI_POWER_13dBm);
-        //   WiFi.begin(WIFI_SSID, WIFI_PASS);
-        //   while (WiFi.status() != WL_CONNECTED)
-        //   {
-        //     delay(1000);
-        //     if (abortGetTimeIN())
-        //       return;
-        //   }
-        //   configTime(0, 0, MY_NTP_SERVER); // 0, 0 because we will use TZ in the next line
-        //   setenv("TZ", MY_TZ, 1);          // Set environment variable with your time zone
-        //   tzset();
-        //   while (ti.tm_year < (2025 - 1900))
-        //   {
-        //     delay(1000);
-        //     getTime();          
-        //     if (abortGetTimeIN())
-        //       return;
-        //   }
-        //   WiFi.mode(WIFI_OFF); // turn off wifi to save power, we don't need it anymore
-        //   msClockStart = millis() - (ti.tm_hour * 3600 + ti.tm_min * 60 + ti.tm_sec) * 1000;
-        }
-        else
-          clck.start();
-          // msClockStart = millis();
-        // lastBeepedMin = -1;
-        break;
-    } });
-
-  btn.attachDoubleClick([]()
-                        { 
-    switch (mode)
-    {
-      case TIMER:
-        msTimerStart = millis();
-        break;
-      case CLOCK:
-        // msClockStart = millis();
-        // lastBeepedMin = -1;
-        if (clck.start())
-        {
-          display.clear(MS_ITV_SHORT);
-          display.nums(0, 0);
-          delay(MS_ITV_SHORT);
-          display.clear(MS_ITV_SHORT);
-        }
-        break;  
-    } });
+  btn.attachDoubleClick(doubleClickHandler);
 
   btn.attachLongPressStart([]()
                            { nextMode(); });
+
+  btn.attachMultiClick(multiClickHandler);
+
   // set msLastDisplayUpdate to unsigned long max value, so that display will be updated immediately in the loop
   msLastDisplayUpdate = ULONG_MAX;
 }
@@ -255,25 +244,19 @@ void loop()
 
   case CLOCK:
   {
+    auto sec = millis() / 1000;
+    auto displayColon = clck.isPaused() ? sec % 2 : true;
     if (clck.display())
-      display.nums(clck.getHours(), clck.getMinutes());
-    // if (msClockStart == 0)
-    //   break;
-    // int mm = (millis() - msClockStart) / 60000;
-    // int hh = (mm / 60) % 24;
-    // mm = mm % 60;
-    // display.nums(hh, mm);
-    // if (mm != lastBeepedMin && (mm % 5 == 0) && !(mm == 0 && lastBeepedMin == -1))
-    // {
-    //   if (mm % 30 == 0) // 00 -> 2x LONG, 30 -> 1x LONG
-    //     buzzer.buzz(MS_ITV_LONG, mm == 0 ? 2 : 1);
-    //   else if (mm % 10 == 0) // 10, 40 -> 1x MED, 20, 50 -> 2x MED
-    //     buzzer.buzz(MS_ITV_MEDIUM, mm == 10 || mm == 40 ? 1 : 2);
-    //   else // 5, 15, 25, 35, 45, 55 -> 2x SHORT
-    //     buzzer.buzz(MS_ITV_SHORT, 2);
-    //   lastBeepedMin = mm;
-    // }
-    break;
+      display.nums(clck.getHours(), clck.getMinutes(), displayColon);
   }
+  break;
+
+  case BRIGHTNESS:
+    display.string("brit"); // 2nd display name option "BRGH"
+    break;
+
+  case CLOCK_BEEPS:
+    display.nums(0, clck.getClockBeeps());
+    break;
   }
 }

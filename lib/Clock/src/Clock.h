@@ -10,38 +10,55 @@
 
 #include "Buzzer.h"
 
+// How often should clock beep: ev 5, 10, 30min
+enum ClockBeeps
+{
+  Every5min = 5,   // Clock beeps every 5 minutes
+  Every10min = 10, // Clock beeps every 10 minutes
+  Every30min = 30, // Clock beeps every 30 minutes
+  NeverBeeps = 0
+};
+
 class Clock
 {
 private:
-    time_t now; // seconds since Epoch (1970) - UTC
-    struct tm ti;
-    ulong msClockStart;
-    int lastBeepedMin = -1;
-    bool isClockCurrentTime = false;
-    ulong msStartGetTime;
-    const ulong msMaxGetTime = (ulong)15 * 1000;
-    Buzzer *buzzer;
-    int hours = 0, minutes = 0;
+  time_t now; // seconds since Epoch (1970) - UTC
+  struct tm ti;
+  ulong msClockStart = 0;
+  ulong msClockPause = 1; // time (milliseconds) when the clock started
+  int lastBeepedMin = -1;
+  bool isClockCurrentTime = false;
+  ulong msStartGetTime;
+  const ulong msMaxGetTime = (ulong)15 * 1000;
+  Buzzer *buzzer;
+  int hours = 0, minutes = 0;
+  ClockBeeps clockBeeps = Every5min;
+  // ulong tempSecs = 0; // za testiranje racunanja protoka vremena; start/pause
 
-    void getTime();
-    // abort getting current time if it takes too long
-    bool abortGetTimeIN();
+  void getTime();
+  // abort getting current time if it takes too long
+  bool abortGetTimeIN();
 
 public:
-    Clock(Buzzer *buzzer);
+  Clock(Buzzer *buzzer);
 
-    bool getClockCurrentTime() { return isClockCurrentTime; }
-    void setClockCurrentTime(bool isCurrTime) { isClockCurrentTime = isCurrTime; }
-    void toggleClockCurrentTime() { isClockCurrentTime = !isClockCurrentTime; }
+  bool getClockCurrentTime() { return isClockCurrentTime; }
+  void setClockCurrentTime(bool isCurrTime) { isClockCurrentTime = isCurrTime; }
+  void toggleClockCurrentTime() { isClockCurrentTime = !isClockCurrentTime; }
 
-    void getCurrentTime();
+  void getCurrentTime();
 
-    /// @brief start clock, if it doesn't display current time
-    /// @return is clock started (only if it doesn't display current time)
-    bool start();
+  /// @brief start clock, if it doesn't display current time
+  void start();
 
-    int getHours() { return hours; }
-    int getMinutes() { return minutes; }
+  int getHours() { return hours; }
+  int getMinutes() { return minutes; }
 
-    bool display();
+  ClockBeeps getClockBeeps() { return clockBeeps; }
+  void setClockBeeps(ClockBeeps clockBeeps) { this->clockBeeps = clockBeeps; }
+
+  bool isPaused() { return msClockPause != 0; }
+  void pause();
+
+  bool display();
 };
