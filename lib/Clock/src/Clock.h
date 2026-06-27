@@ -2,8 +2,9 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
-#include <CredWiFi.h>
-// #include <CredWiFi_HotSpot.h>
+#include <CredWiFi_mtsUmka.h>
+#include <CredWiFi_HotSpot.h>
+#include <CredWiFi_Vujovic.h>
 #define MY_NTP_SERVER "rs.pool.ntp.org"
 #define MY_TZ "CET-1CEST,M3.5.0/02,M10.5.0/03"
 #include "time.h"
@@ -38,6 +39,7 @@ private:
   void getTime();
   // abort getting current time if it takes too long
   bool abortGetTimeIN();
+  void abortGetTime();
 
 public:
   Clock(Buzzer *buzzer);
@@ -61,4 +63,5 @@ public:
   void pause();
 
   bool display();
+  void beepIN();
 };

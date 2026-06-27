@@ -20,20 +20,8 @@ Display display(pinDispClock, pinDispDio);
 #include "Buzzer.h"
 Buzzer buzzer(pinBuzzer);
 
-class TimerItem
-{
-public:
-  char name[4];
-  int *intervals;
-  int intervalCount;
-
-  TimerItem(const char nameIn[4], int *intervalsIn, int count)
-      : intervals(intervalsIn), intervalCount(count)
-  {
-    for (int i = 0; i < 4; ++i)
-      name[i] = nameIn[i];
-  }
-};
+#include "Timers.h"
+Timers timers;
 
 #include "TempHum.h"
 TempHum tempHum(pinDHT, &display);
@@ -43,10 +31,6 @@ Clock clck(&buzzer);
 
 #include "OneButton.h" // lib_deps = mathertel/OneButton@^2.0.0
 OneButton btn(pinButton, true);
-
-// #define MS_ITV_LONG 1000
-// #define MS_ITV_MEDIUM 333
-// #define MS_ITV_SHORT 100
 
 ulong msLastDisplayUpdate;
 enum Mode
@@ -60,32 +44,6 @@ enum Mode
 };
 Mode mode = TEMP_HUM;
 
-// minutes to seconds
-int toSecs(double min) { return (int)(min * 60); }
-// minutes to seconds: min * 60 + sec
-int toSecs(int min, int sec) { return min * 60 + sec; }
-
-TimerItem timers[] = {
-    TimerItem("COFF", new int[1]{toSecs(1, 20)}, 1),
-    TimerItem("EGGS", new int[1]{toSecs(3, 20)}, 1),
-    // TimerItem("FREE", new int[1]{toSecs(7)}, 1), // "BLEJ"
-
-    // rest between sets
-    // TimerItem("RESS", new int[1]{60}, 1),
-    // TimerItem("RESM", new int[1]{90}, 1),
-    // TimerItem("RESL", new int[1]{120}, 1),
-
-    // test how mode names look on the display
-    // TimerItem("TEHU", new int[1]{60}, 1),
-    // TimerItem("TIMR", new int[1]{90}, 1),
-    // TimerItem("CLCK", new int[1]{120}, 1),
-
-    // TimerItem("0012", new int[1]{12}, 1),
-    // TimerItem("TEST", new int[1]{60}, 1),
-};
-int idxTimer = 0;
-ulong msTimerStart;
-
 void nextMode()
 {
   display.clear();
@@ -95,7 +53,9 @@ void nextMode()
   switch (mode)
   {
   case TIMER:
-    display.string(timers[idxTimer = 0].name);
+    // display.string(timers[idxTimer = 0].name);
+    timers.moveToFirst();
+    display.string(timers.current().name);
     break;
 
   case CLOCK:
@@ -114,19 +74,24 @@ void clickHandler()
     break;
 
   case TIMER:
-    if (++idxTimer >= sizeof(timers) / sizeof(timers[0]))
-      idxTimer = 0;
-    display.string(timers[idxTimer].name);
-    msTimerStart = 0;
+    timers.moveToNext();
+    display.string(timers.current().name);
+    timers.resetTime();
     break;
 
   case CLOCK:
-    // if clock is currently showing time - switch to showing current time, otherwise switch to showing time since clock started
     clck.toggleClockCurrentTime();
     if (clck.getClockCurrentTime())
     {
       display.clear();
       clck.getCurrentTime();
+    }
+    else  
+    {
+      display.clear();
+      delay(MS_ITV_MEDIUM);
+      clck.start();
+      display.nums(clck.getHours(), clck.getMinutes());
     }
     break;
 
@@ -145,7 +110,9 @@ void doubleClickHandler()
   switch (mode)
   {
   case TIMER:
-    msTimerStart = millis();
+    // msTimerStart = millis();
+    timers.startTime(millis());
+    buzzer.buzz(MS_ITV_SHORT);
     break;
 
   case CLOCK:
@@ -195,14 +162,13 @@ void setup()
   tempHum.begin();
   clck.setClockBeeps(Every10min);
   clck.pause();
+  // timers.add(TimerItem("TEST", 0, 3));
+  timers.add(TimerItem("COFF", 1, 20));
+  timers.add(TimerItem("EGGS", 3, 20));
 
   btn.attachClick(clickHandler);
-
   btn.attachDoubleClick(doubleClickHandler);
-
-  btn.attachLongPressStart([]()
-                           { nextMode(); });
-
+  btn.attachLongPressStart(nextMode);
   btn.attachMultiClick(multiClickHandler);
 
   // set msLastDisplayUpdate to unsigned long max value, so that display will be updated immediately in the loop
@@ -227,15 +193,15 @@ void loop()
 
   case TIMER:
   {
-    if (msTimerStart == 0)
+    if (timers.isEmpty() || !timers.timeStarted())
       break;
-    int remaining = timers[idxTimer].intervals[0] - (millis() - msTimerStart) / 1000;
+    auto remaining = timers.secondsRemaining(millis());
     if (remaining < 0)
     {
       remaining = 0;
-      msTimerStart = 0;
+      timers.resetTime();
       buzzer.buzz(MS_ITV_MEDIUM, 2);
-      display.string(timers[idxTimer].name);
+      display.string(timers.current().name);
     }
     else
       display.nums(remaining / 60, remaining % 60);
@@ -246,8 +212,13 @@ void loop()
   {
     auto sec = millis() / 1000;
     auto displayColon = clck.isPaused() ? sec % 2 : true;
+    // if (clck.display())
+    //   display.nums(clck.getHours(), clck.getMinutes(), displayColon);
     if (clck.display())
+    {
       display.nums(clck.getHours(), clck.getMinutes(), displayColon);
+      clck.beepIN();
+    }
   }
   break;
 

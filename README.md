@@ -1,6 +1,6 @@
 # Dumb Watch
 
-![Test device](docs/test-device.jpg)
+![Test device](docs/finished-device-2.jpg)
 
 ## Components
 ESP32-C3 SuperMini, TM1637 display, buzzer, button
@@ -12,8 +12,10 @@ ESP32-C3 SuperMini, TM1637 display, buzzer, button
 
 ## TODO
 - [ ] Code refactor
-   - [ ] (WIP) Use classes for different components
-      - [ ] timer
+   - [x] Use classes for different components
+      - [x] timer
+   - [ ] add comments to the code
+- [x] (bug) Clock: current time is incorrect
 - [ ] Make device low power (create new file "main-lp.cpp")
    - Current consumption in different modes (w/o deep sleep) 
       - 41mA w/ display at full brightness (7)
@@ -22,17 +24,12 @@ ESP32-C3 SuperMini, TM1637 display, buzzer, button
    - [ ] temp/hum: read less often; sleep between reads
    - [ ] clock: sleep between display updates
    - [ ] ?auto turn off screen
-- [ ] Clock:
-  - [x] Choose how often device beeps (ev 5min, 10min, 30min, never)
-  - [x] Pause/Resume the clock
-- [x] User should be able to adjust brightness of the display
 - [ ] Maybe it would be better if 2 or 3 buttons are used instead of 1
 - [ ] Maybe it would be better if clicks would work like this:
    - click -> next item (mode, timer item...)
    - long click -> enter/start
    - double click -> exit/back
    - modes would display their names initially: TEHU (temp/hum), TIMR/TIME, CLCK/CLOC, OPT (options)
-- [ ] Improve component placement on the breadboard
-  - [ ] Use softer wires between display and BB
+- [x] Use softer wires between display and BB
 - [ ] Make a placeholder for Li-Ion battery
    - for "drone" batteries: metal profile (or couple of solid wires) glued to the bottom of the BB or just hot glue greased drone battery to the bottom of the BB. Make a room for boost converter (5V).

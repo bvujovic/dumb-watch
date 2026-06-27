@@ -11,14 +11,21 @@ void Clock::getTime()
   localtime_r(&now, &ti); // update the structure tm with the current time
 }
 
+void Clock::abortGetTime()
+{
+  WiFi.mode(WIFI_OFF);
+  isClockCurrentTime = false;
+  msClockStart = millis();
+  pause();
+  lastBeepedMin = -1;
+  buzzer->buzz(MS_ITV_SHORT, 3);
+}
+
 bool Clock::abortGetTimeIN()
 {
   if (millis() > msStartGetTime + msMaxGetTime)
   {
-    WiFi.mode(WIFI_OFF);
-    isClockCurrentTime = false;
-    msClockStart = millis();
-    buzzer->buzz(MS_ITV_SHORT, 3);
+    abortGetTime();
     return true;
   }
   return false;
@@ -38,10 +45,12 @@ void Clock::getCurrentTime()
     String pass;
   };
   NetCred nets[] = {
-      {WIFI_SSID, WIFI_PASS},
-      {"POCO X3 Pro", "mile1234"},
+      {WIFI_SSID_MTS_UMKA, WIFI_PASS_MTS_UMKA},
+      {WIFI_SSID_HOTSPOT, WIFI_PASS_HOTSPOT},
+      {WIFI_SSID_VUJOVIC, WIFI_PASS_VUJOVIC},
   };
   int n = WiFi.scanNetworks();
+  auto networkFound = false;
   for (size_t i = 0; i < sizeof(nets) / sizeof(NetCred); i++)
   {
     // find an index of the first network with nets[i].ssid name
@@ -49,13 +58,18 @@ void Clock::getCurrentTime()
       if (WiFi.SSID(j) == nets[i].ssid)
       {
         WiFi.begin(nets[i].ssid.c_str(), nets[i].pass.c_str());
+        networkFound = true;
         break;
       }
   }
-  // WiFi.begin(WIFI_SSID, WIFI_PASS);
+  if (!networkFound)
+  {
+    abortGetTime();
+    return;
+  }
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(1000);
+    delay(MS_ITV_LONG);
     if (abortGetTimeIN())
       return;
   }
@@ -64,14 +78,14 @@ void Clock::getCurrentTime()
   tzset();
   while (ti.tm_year < (2025 - 1900))
   {
-    delay(1000);
+    delay(MS_ITV_LONG);
     getTime();
     if (abortGetTimeIN())
       return;
   }
   WiFi.mode(WIFI_OFF); // turn off wifi to save power, we don't need it anymore
   msClockStart = millis() - (ti.tm_hour * 3600 + ti.tm_min * 60 + ti.tm_sec) * 1000;
-  lastBeepedMin = -1;
+  start();
 }
 
 void Clock::start()
@@ -82,9 +96,10 @@ void Clock::start()
       msClockStart = millis();
     else
       msClockStart = millis() - (msClockPause - msClockStart);
-    msClockPause = 0;
-    lastBeepedMin = -1;
   }
+  msClockPause = 0;
+  lastBeepedMin = -1;
+  buzzer->buzz(MS_ITV_SHORT);
 }
 
 void Clock::pause()
@@ -104,6 +119,29 @@ bool Clock::display()
   int mm = ms / 60000;
   int hh = (mm / 60) % 24;
   mm = mm % 60;
+  // if (mm != lastBeepedMin && (mm % 5 == 0) && !(mm == 0 && lastBeepedMin == -1) && clockBeeps != NeverBeeps)
+  // {
+  //   if (mm % 30 == 0) // 00 -> 2x LONG, 30 -> 1x LONG
+  //     buzzer->buzz(MS_ITV_LONG, mm == 0 ? 2 : 1);
+  //   else if (mm % 10 == 0) // 10, 40 -> 1x MED, 20, 50 -> 2x MED
+  //   {
+  //     if (clockBeeps != Every30min)
+  //       buzzer->buzz(MS_ITV_MEDIUM, mm == 10 || mm == 40 ? 1 : 2);
+  //   }
+  //   else // 5, 15, 25, 35, 45, 55 -> 2x SHORT
+  //     if (clockBeeps == Every5min)
+  //       buzzer->buzz(MS_ITV_SHORT, 2);
+  //   lastBeepedMin = mm;
+  // }
+  hours = hh;
+  minutes = mm;
+  return true;
+}
+
+void Clock::beepIN()
+{
+  auto mm = minutes;
+  auto hh = hours;
   if (mm != lastBeepedMin && (mm % 5 == 0) && !(mm == 0 && lastBeepedMin == -1) && clockBeeps != NeverBeeps)
   {
     if (mm % 30 == 0) // 00 -> 2x LONG, 30 -> 1x LONG
@@ -118,7 +156,4 @@ bool Clock::display()
         buzzer->buzz(MS_ITV_SHORT, 2);
     lastBeepedMin = mm;
   }
-  hours = hh;
-  minutes = mm;
-  return true;
 }
